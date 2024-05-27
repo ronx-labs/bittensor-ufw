@@ -78,17 +78,20 @@ if __name__ == "__main__":
     else:
         subtensor = bt.subtensor(network="finney")
 
-    # Resync the metagraph
-    neurons_dict = resync_metagraph(netuids = NETUID_LIST)
+    while True:
+        # Resync the metagraph
+        neurons_dict = resync_metagraph(netuids = NETUID_LIST)
 
-    # Get the IPs of any neurons that have vpermit = True
-    ips = neurons_to_ips(neurons_dict)
-    
-    print("======= validator non-zero ips ========")
-    print(ips)
-    
-    # Transform the IPs to a specific format
-    # ips = [ip.split(".")[0] + "." + ip.split(".")[1] + ".0.0" for ip in ips]
-    
-    # Whitelist the IPs in UFW
-    whitelist_ips_in_ufw(ips)
+        # Get the IPs of any neurons that have vpermit = True
+        ips = neurons_to_ips(neurons_dict)
+        
+        print("======= validator non-zero ips ========")
+        print(ips)
+        
+        # Transform the IPs to a specific format
+        # ips = [ip.split(".")[0] + "." + ip.split(".")[1] + ".0.0" for ip in ips]
+        
+        # Whitelist the IPs in UFW
+        whitelist_ips_in_ufw(ips)
+        # Sleep 20 min
+        time.sleep(1200)
