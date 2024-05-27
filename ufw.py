@@ -5,6 +5,9 @@ import bittensor as bt
 import subprocess
 from typing import List, Dict, Set
 
+
+NETUID_LIST = [10]
+
 # Function to resynchronize with the Bittensor metagraph
 def resync_metagraph(netuids: List[int]) -> Dict[int, List['bt.NeuronInfoLite']]:
     bt.logging.info("resync_metagraph()")
@@ -23,8 +26,10 @@ def neurons_to_ips(all_neurons: Dict[int, List['bt.NeuronInfoLite']]) -> Set[str
 
     validator_ips = set()
     for _, subnet_neurons in all_neurons.items():
-        ips = [neuron.axon_info.ip for neuron in subnet_neurons if neuron.validator_permit]
+        ips = [neuron.axon_info.ip for neuron in subnet_neurons if neuron.validator_permit and neuron.axon_info.ip!='0.0.0.0']
         validator_ips.update(set(ips))
+        print("======= validator with zero ips =======")
+        print([(neuron.uid, neuron.hotkey) for neuron in subnet_neurons if neuron.validator_permit and neuron.axon_info.ip=='0.0.0.0'])
     
     return validator_ips
 
@@ -34,9 +39,12 @@ def whitelist_ips_in_ufw(ips: List[str]):
     stop_cmd = "sudo ufw disable"
     # Reset UFW
     reset_cmd = "echo y | sudo ufw reset"
+    # Default policy to deny
+    deny_cmd = "sudo ufw default deny incoming"
     
     subprocess.run(stop_cmd, shell=True)
     subprocess.run(reset_cmd, shell=True)
+    subprocess.run(deny_cmd, shell=True)
     
     # Allow SSH connections
     ssh_cmd = "sudo ufw allow ssh"
@@ -44,7 +52,7 @@ def whitelist_ips_in_ufw(ips: List[str]):
     
     # Whitelist the provided IPs for TCP connections
     for ip in ips:
-        cmd = f"sudo ufw allow proto tcp from {ip}/16"
+        cmd = f"sudo ufw allow proto tcp from {ip}"
         subprocess.run(cmd, shell=True)
         bt.logging.info(f"Whitelisted IP {ip} for bittensor")
     
@@ -55,7 +63,6 @@ def whitelist_ips_in_ufw(ips: List[str]):
 # Function to parse command line arguments
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Run firewall")
-    parser.add_argument('--netuid', help='Subnet(s) to add firewall to', choices=[1, 11, 21], default=1, type=int, nargs='+')
     parser.add_argument('--subtensor.chain_endpoint', dest='chain_endpoint', help='Subtensor node', type=str, required=False, default=None)
     
     args = parser.parse_args()
@@ -71,22 +78,17 @@ if __name__ == "__main__":
     else:
         subtensor = bt.subtensor(network="finney")
 
-    # Infinite loop to keep the metagraph synced and firewall updated
-    while True:
-        # Resync the metagraph
-        neurons_dict = resync_metagraph(netuids = args.netuid)
+    # Resync the metagraph
+    neurons_dict = resync_metagraph(netuids = NETUID_LIST)
 
-        # Get the IPs of any neurons that have vpermit = True
-        ips = neurons_to_ips(neurons_dict)
-        
-        # Transform the IPs to a specific format
-        ips = [ip.split(".")[0] + "." + ip.split(".")[1] + ".0.0" for ip in ips]
-        
-        # Whitelist the IPs in UFW
-        whitelist_ips_in_ufw(ips)
-        
-        # Wait for 100 blocks (approximately 1200 seconds or 20 minutes)
-        bt.logging.info("Waiting for 100 blocks, sleeping")
-        time.sleep(1200)
-
-
+    # Get the IPs of any neurons that have vpermit = True
+    ips = neurons_to_ips(neurons_dict)
+    
+    print("======= validator non-zero ips ========")
+    print(ips)
+    
+    # Transform the IPs to a specific format
+    # ips = [ip.split(".")[0] + "." + ip.split(".")[1] + ".0.0" for ip in ips]
+    
+    # Whitelist the IPs in UFW
+    whitelist_ips_in_ufw(ips)
